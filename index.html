@@ -1687,5 +1687,5 @@ window.addEventListener('keydown',e=>{if(restrictedVisible){e.stopImmediatePropa
 window.addEventListener('click',e=>{if(restrictedVisible&&e.target!==$('terminalPreview')&&!(e.target.closest&&e.target.closest('#rimCloudOverlay'))){e.preventDefault();e.stopImmediatePropagation();}},true);
 
 shipInstallDamage();heInstall();dpInstallEvents();$('shipTemplate').addEventListener('change',()=>dpSelectTemplate(chosenShipTemplate()));
-if(rimCloudRequested()){rimStartCloudPlayer(rimCloudCodeFromURL());}else{restrictedApplyShell();persist();refresh();fit();ensureTerminalPreview();if(loadWarning)toast(loadWarning);else $('saveStatus').textContent='Autosave ready · this browser';}
+if(rimCloudRequested()||location.protocol==='http:'||location.protocol==='https:'){rimStartCloudPlayer(rimCloudCodeFromURL());}else{restrictedApplyShell();persist();refresh();fit();ensureTerminalPreview();if(loadWarning)toast(loadWarning);else $('saveStatus').textContent='Autosave ready · this browser';}
 </script></body></html>
