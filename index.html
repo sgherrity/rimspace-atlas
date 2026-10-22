@@ -855,7 +855,7 @@ function applyChosenShipTemplate(){
  const t=chosenShipTemplate();if(!t)return;
  const fresh=shipFreshDefaults(t.ship),place=shipFreshLocation();if(place){fresh.locationId=place.id;fresh.location=place.name;}
  commit(()=>{data.terminal.ship=fresh;data.terminal.shipDamage=shipDamageClean(null,fresh);data.terminal.shipDamage.initialized=true;data.terminal.navigationJump=null;navViewers.clear();navPulseClock={id:'',last:0};restrictedReviews.clear();});
- dpSelectTemplate(t);$('shipTemplateConfirm').close();renderTerminalEditor();sendPlayerFrame(true);
+ dpSelectTemplate(t);$('shipTemplateConfirm').close();renderShipEditor();sendPlayerFrame(true);
  toast(place?'Fresh ship initialized and saved.':"Fresh ship saved. Anvolla is not uniquely mapped in this campaign; add/select its existing location before routing.");
 }
 $('shipTemplateApply').onclick=()=>{const t=chosenShipTemplate();if(!t){toast('Select a ship template first.');return;}$('shipTemplateConfirmText').textContent='Apply “'+t.name+'”? Initialize a fresh ship? Fuel, hull and crew reset to capacity; warp cores to 0; Megadamage to 00; location to Anvolla; owner/home port to Unassigned. Name and captain are cleared. Cargo, repairs, private notes and damage clocks are cleared; pending travel is canceled. Selected template specifications/equipment apply. This saves immediately; other templates and their deckplans are retained.';$('shipTemplateConfirm').showModal();};
@@ -984,7 +984,12 @@ function renderTerminalEditor(){
 
  if($('rimSiteBase'))$('rimSiteBase').value=rimSiteBase();
  $('terminalCampaign').textContent=data.title+' · '+data.campaignId;$('campaignName').value=data.title;$('terminalName').value=t.name;$('terminalWelcome').value=t.welcome;
- $('disableHacking').checked=t.disableHacking===true;$('shipDeckplan').value=t.deckplan||'none';renderShipTemplates();if(t.deckplanTemplateId)$('shipTemplate').value=t.deckplanTemplateId;dpSummary();const location=currentNavigationLocation();
+ $('disableHacking').checked=t.disableHacking===true;renderShipEditor();
+}
+// Ship-template refreshes must not reset unrelated settings or unsaved Player View edits.
+function renderShipEditor(){
+ const t=data.terminal;
+ $('shipDeckplan').value=t.deckplan||'none';renderShipTemplates();if(t.deckplanTemplateId)$('shipTemplate').value=t.deckplanTemplateId;dpSummary();const location=currentNavigationLocation();
  $('shipFields').innerHTML=SHIP_GROUPS.map((g,i)=>`<section class="ship-category"><h2>${i+1}. ${esc(g.label)}</h2><div class="settings-grid">${g.keys.filter(k=>k!=='templateSource').map(shipInputHTML).join('')}</div>${g.id==='damage'?'<div id="shipDamageControls"></div>':''}</section>`).join('')+`<section class="ship-category"><h2>Private Warden Ship Notes</h2>${shipInputHTML('shipNotes')}</section>`;
  shipWireBattleFields();shipRefreshDamagePanel();
 }
