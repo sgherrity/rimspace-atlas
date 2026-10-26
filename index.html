@@ -220,7 +220,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 -->
 </head><body class="restricted-player player">
 <header><div class="brand">✧ RIMSPACE ATLAS<small>CAMPAIGN CARTOGRAPHY</small></div><div class="top-actions"><span id="saveStatus" class="saved">Ready</span><button id="undo" title="Undo (Ctrl/Cmd+Z)">↶ Undo</button><button id="redo" title="Redo (Ctrl/Cmd+Shift+Z)">↷</button><button id="player">Player view</button><button id="boardToggle" aria-controls="boardPanel" aria-expanded="false" aria-pressed="false">Bounty board</button><button id="terminalSettings">Settings</button><span id="cloudWrap" style="position:relative;display:inline-flex;align-items:center;gap:0"><button id="cloudBtn" title="Cloud save options" aria-haspopup="true" aria-expanded="false">☁ Cloud ▾</button><span id="cloudDot" style="display:none;position:absolute;top:1px;right:14px;width:7px;height:7px;background:#d70015;border-radius:50%"></span><button id="cloudMenuBtn" hidden style="display:none" aria-hidden="true">▾</button><div id="cloudMenu" style="display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#12202a;border:1px solid #2b4452;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.45);z-index:1000;min-width:240px;padding:4px"><button data-cloud="load" style="display:block;width:100%;text-align:left;padding:8px 10px;border:none;background:none;color:#cfe6ef;cursor:pointer">↓ Load Cloud Save</button><button data-cloud="push" style="display:block;width:100%;text-align:left;padding:8px 10px;border:none;background:none;color:#cfe6ef;cursor:pointer">↑ Upload Cloud Save</button></div></span><span id="playerLink" style="font-size:var(--warden-small);color:var(--muted)" role="status">Player screen closed</span></div></header>
-<div class="layout"><aside class="left"><span class="tag">YOUR CAMPAIGN / YOUR CHART</span><p>Every system. Every connection.<br>Ready for your next expedition.</p><label for="search">FIND A DESTINATION</label><input id="search" type="search" placeholder="System, bounty # or target name..."><div id="systemList" class="list"></div><div class="help"><h2>Map Options</h2><div class="export-actions"><button id="png">Player PNG</button><button id="svgExport">Player SVG</button></div><button id="reset" class="wide subtle">Restore original map…</button></div></aside>
+<div class="layout"><aside class="left"><span class="tag">YOUR CAMPAIGN / YOUR CHART</span><p>Every system. Every connection.<br>Ready for your next expedition.</p><label for="search">FIND A DESTINATION</label><input id="search" type="search" placeholder="System, bounty # or target name..."><div id="systemList" class="list"></div><div class="help"><h2>Map Options</h2><div class="export-actions"><button id="png">Player PNG</button><button id="svgExport">Player SVG</button></div><label class="row"><input id="playerPrintColors" type="checkbox"> Print Mode</label><button id="reset" class="wide subtle">Restore original map…</button></div></aside>
 <main class="mapwrap" id="consoleStage"><iframe id="terminalPreview" title="Shared player terminal" style="display:none;width:100%;height:100%;border:0"></iframe><div class="cockpit-bar"><strong id="consoleName">RIMSPACE / NAVCOM</strong><button id="navTab" class="active">NAVIGATION</button><button id="contractsTab">BOUNTIES</button></div><div class="cockpit-footer"><span id="consoleStatus">NAVCOM ONLINE · PLAYER PREVIEW</span><span id="consoleReadout">LIVE CHART · READ ONLY</span></div><svg id="map" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Editable star map"></svg><div class="maptools"><button id="select" class="active">↖ Select</button><button id="add">＋ System</button><button id="connect">⌁ Route</button><button id="fit">Fit</button><button id="zoomIn" aria-label="Zoom in">+</button><button id="zoomOut" aria-label="Zoom out">−</button></div><section id="boardPanel" class="board-panel" hidden aria-labelledby="boardHeading"><div id="boardHeading" class="board-heading">BOUNTY BOARD · 0/6</div><div id="boardItems" class="board-items"></div></section></main>
 <aside class="right" id="inspector"></aside></div><div id="toast" role="status"></div><input type="file" id="file" accept=".json,application/json" hidden>
 
@@ -857,7 +857,19 @@ const TEMPLATE_KEYS=SHIP_FIELDS.map(f=>f[0]).filter(k=>!['location','cargo','fue
 function cleanShipTemplates(raw){return (Array.isArray(raw)?raw:[]).slice(0,200).filter(t=>t&&typeof t.id==='string'&&t.id.length<150).map(t=>{const source=migrateShipWeaponFields(t.ship),ship={};for(const k of TEMPLATE_KEYS)if(source[k]!==undefined)ship[k]=String(source[k]).slice(0,12000);return {id:t.id,name:String(t.name||'Custom ship').slice(0,150),ship,deckplan:t.deckplan?dpClean(t.deckplan):undefined};});}
 function mergeShipTemplates(raw){return cleanShipTemplates(raw);}
 function storeShipTemplates(){persist();}
-function renderShipTemplates(){data.shipTemplates=mergeShipTemplates(data.shipTemplates);$('shipTemplate').innerHTML='<option value="">Choose ship template...</option><optgroup label="Toolkit presets">'+BOOK_SHIP_TEMPLATES.map(t=>`<option value="${esc(t.id)}">${esc(t.name)} · ${esc(t.ship.templateSource)}</option>`).join('')+'</optgroup><optgroup label="My ship templates">'+data.shipTemplates.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')+'</optgroup>';storeShipTemplates();}
+function shipJumpClass(ship){
+ const roman=['0','I','II','III','IV','V','VI','VII','VIII','IX','X'];
+ const j=String(ship?.jump??'').trim().toUpperCase(),c=String(ship?.class??'').trim().toUpperCase();
+ const jn=/^\d+$/.test(j)?Number(j):roman.indexOf(j);
+ const cn=/^\d+$/.test(c)?Number(c):roman.indexOf(c);
+ return 'J'+(jn>=0&&jn<=10?jn:'?')+'C-'+(cn>=0&&cn<=5?roman[cn]:'?');
+}
+function shipTemplateLabel(t){
+ const name=String(t.name||'Custom ship').replace(/\s+J(?:\d+|[IVX]+|\?)C-?(?:[IVX]+|\d+|\?)(?=\s|$)/gi,'');
+ const split=name.indexOf(' — ');
+ return split>=0?name.slice(0,split)+' '+shipJumpClass(t.ship)+name.slice(split):name+' '+shipJumpClass(t.ship);
+}
+function renderShipTemplates(){data.shipTemplates=mergeShipTemplates(data.shipTemplates);$('shipTemplate').innerHTML='<option value="">Choose ship template...</option><optgroup label="Toolkit presets">'+BOOK_SHIP_TEMPLATES.map(t=>`<option value="${esc(t.id)}">${esc(shipTemplateLabel(t))} · ${esc(t.ship.templateSource)}</option>`).join('')+'</optgroup><optgroup label="My ship templates">'+data.shipTemplates.map(t=>`<option value="${esc(t.id)}">${esc(shipTemplateLabel(t))}</option>`).join('')+'</optgroup>';storeShipTemplates();}
 function chosenShipTemplate(){return BOOK_SHIP_TEMPLATES.concat(data.shipTemplates||[]).find(t=>t.id===$('shipTemplate').value);}
 function shipFreshDefaults(source){
  const s={};for(const [key] of SHIP_FIELDS)s[key]=String(source?.[key]??'').trim()||'None';
@@ -1373,7 +1385,7 @@ function shipWireBattleFields(){const base=$('ship_weaponsBase'),total=$('ship_w
 function shipPlayerManifest(){const s=data.terminal.ship,d=shipDamageState(),level=shipMDLevel(s),val=k=>String(s[k]??'').trim()||'NOT RECORDED',pair=(a,b)=>val(a)+'/'+val(b),count=(a,b)=>val(a)+' installed / '+val(b)+' maximum',missing=v=>!String(v??'').trim();
  const total=navInteger(s.weaponsTotal),battle=total===null?val('battle'):String(total),off=d.destroyed||level>=8;
  const noUpgrade=/^(none|none equipped\.?|no upgrades installed)$/i.test(String(s.upgrades||'').trim())||missing(s.upgrades);
- const identity=[val('identifier'),val('make'),val('model'),'J'+val('jump')+'C'+val('class'),val('type')].join(' ');
+ const identity=[val('identifier'),val('make'),val('model'),shipJumpClass(s),val('type')].join(' ');
  const output=(level>=2||off)?'0':val('damageTotal');
  const sections=[
  {id:'ship-transponder',label:'TRANSPONDER',lines:['Transponder Status: '+(off?'OFFLINE':val('transponder')),identity,'Captain '+val('captain')]},
@@ -1441,8 +1453,8 @@ function chartLabelOffset(n){return 25+chartSymbolRadius(n)-8;}
 function chartSizeControl(n){return '<label for="chartSize">Symbol size</label><select id="chartSize"><option value="standard"'+(n.size!=='large'?' selected':'')+'>Standard</option><option value="large"'+(n.size==='large'?' selected':'')+'>Large (3×)</option></select>';}
 function icon(x,y,type,color='#d8e7ee',r=8){
  const ink=esc(color);
- if(type==='station')return `<path d="M${x-r},${y}l${r/2},${-r*.87}h${r}l${r/2},${r*.87}l${-r/2},${r*.87}h${-r}z M${x-r},${y}h${r*2}" fill="none" stroke="${color}"/>`;
- if(type==='moon'){const small=r<=4;return `<g transform="translate(${x} ${y}) scale(${r/8})" fill="none" stroke="${ink}" stroke-width="${small?1.6:1.1}"><circle r="${small?7:7.4}"/><path d="${small?'M3.5,-6.06 A7,7 0 1 0 3.5,6.06 A5.95,5.95 0 0 1 3.5,-6.06':'M3.7,-6.41 A7.4,7.4 0 1 0 3.7,6.41 A6.29,6.29 0 0 1 3.7,-6.41'}" fill="${ink}" stroke="none"/></g>`;}
+ if(type==='station')return `<path data-chart-symbol="station" d="M${x-r},${y}l${r/2},${-r*.87}h${r}l${r/2},${r*.87}l${-r/2},${r*.87}h${-r}z M${x-r},${y}h${r*2}" fill="none" stroke="${color}"/>`;
+ if(type==='moon'){const small=r<=4;return `<g data-chart-symbol="moon" transform="translate(${x} ${y}) scale(${r/8})" fill="none" stroke="${ink}" stroke-width="${small?1.6:1.1}"><circle r="${small?7:7.4}"/><path d="${small?'M3.5,-6.06 A7,7 0 1 0 3.5,6.06 A5.95,5.95 0 0 1 3.5,-6.06':'M3.7,-6.41 A7.4,7.4 0 1 0 3.7,6.41 A6.29,6.29 0 0 1 3.7,-6.41'}" fill="${ink}" stroke="none"/></g>`;}
 
  if(type==='site')return `<path d="M${x},${y-r} L${x+r},${y} L${x},${y+r} L${x-r},${y} Z" fill="none" stroke="${ink}"/>`;
  return `<circle cx="${x}" cy="${y}" r="${r}" fill="${ink}"/>`;
@@ -1452,7 +1464,7 @@ function defs(){return `<defs><radialGradient id="halo"><stop stop-color="#b7dee
 function scene(forPlayers=false,exporting=false,exportHighlights=false){const b=bounds(forPlayers);let s=defs()+`<rect x="-1000000" y="-1000000" width="2000000" height="2000000" fill="#050a12"/><rect x="-1000000" y="-1000000" width="2000000" height="2000000" fill="url(#stars)"/>`;
  const ns=data.nodes.filter(n=>!forPlayers||!n.hidden),ids=new Set(ns.map(n=>n.id));
  for(const e of data.edges){if(!ids.has(e.a)||!ids.has(e.b)||(forPlayers&&e.hidden))continue;let a=node(e.a),b=node(e.b),col={1:'#39596e',2:'#65bacb',3:'#c9a16b',4:'#aeb9e5',5:'#aeb9e5',6:'#aeb9e5',7:'#aeb9e5',8:'#aeb9e5',9:'#aeb9e5',10:'#aeb9e5'}[e.jump],sel=(!exporting||exportHighlights)&&selected?.type==='edge'&&selected.id===e.id;let mx=(a.x+b.x)/2,my=(a.y+b.y)/2;s+=`<g class="edge" data-edge="${esc(e.id)}" opacity="${e.hidden?.3:1}"><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="transparent" stroke-width="16"/><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${sel?'#fff':col}" stroke-width="${sel?3:e.jump===1?1:1.8}" ${e.hidden?'stroke-dasharray="6 5"':''}/>`;if(e.jump>1)s+=`<rect x="${mx-(e.jump===10?25:18)}" y="${my-9}" width="${e.jump===10?50:36}" height="18" rx="4" fill="#08121e" stroke="${col}"/>`+svgText(mx,my+4,'J'+e.jump,10,col);s+='</g>';}
- for(const n of ns){const children=(n.children||[]).filter(c=>!forPlayers||!c.hidden);const radius=chartSymbolRadius(n),extra=radius-8,labelOffset=chartLabelOffset(n),orbit=39+extra;let sel=(!exporting||exportHighlights)&&selected?.type==='node'&&selected.id===n.id;s+=`<g class="node" data-node="${esc(n.id)}" opacity="${n.hidden?.3:1}">`;if(n.type==='planet')s+=`<circle cx="${n.x}" cy="${n.y}" r="${32+extra}" fill="url(#halo)"/>`;if(children.length){s+=`<circle cx="${n.x}" cy="${n.y}" r="${orbit}" fill="none" stroke="#345165"/>`;children.forEach((c,i)=>{if(i<6)s+='<g opacity="'+(c.hidden?0.3:1)+'">'+icon(n.x+27+extra+i*21,n.y-22-extra+i*5,c.type,chartSymbolColor(c),chartSymbolRadius(c))+'</g>';});}if((!exporting||exportHighlights)&&(sel||routeStart===n.id))s+=`<circle cx="${n.x}" cy="${n.y}" r="${(children.length?46:19)+extra}" fill="none" stroke="#8be8e7" stroke-width="1.8" stroke-dasharray="5 4"/>`;
+ for(const n of ns){const children=(n.children||[]).filter(c=>!forPlayers||!c.hidden);const radius=chartSymbolRadius(n),extra=radius-8,labelOffset=chartLabelOffset(n),orbit=39+extra;let sel=(!exporting||exportHighlights)&&selected?.type==='node'&&selected.id===n.id;s+=`<g class="node" data-node="${esc(n.id)}" opacity="${n.hidden?.3:1}">`;if(n.type==='planet')s+=`<circle cx="${n.x}" cy="${n.y}" r="${32+extra}" fill="url(#halo)"/>`;if(children.length){s+=`<circle data-chart-orbit="true" cx="${n.x}" cy="${n.y}" r="${orbit}" fill="none" stroke="#345165"/>`;children.forEach((c,i)=>{if(i<6)s+='<g opacity="'+(c.hidden?0.3:1)+'">'+icon(n.x+27+extra+i*21,n.y-22-extra+i*5,c.type,chartSymbolColor(c),chartSymbolRadius(c))+'</g>';});}if((!exporting||exportHighlights)&&(sel||routeStart===n.id))s+=`<circle cx="${n.x}" cy="${n.y}" r="${(children.length?46:19)+extra}" fill="none" stroke="#8be8e7" stroke-width="1.8" stroke-dasharray="5 4"/>`;
 if(((!exporting&&!forPlayers)||exportHighlights)&&bountyMapHighlighted(n))s+=`<circle cx="${n.x}" cy="${n.y}" r="${(children.length?54:28)+extra}" fill="rgba(229,186,122,0.12)" stroke="#e5ba7a" stroke-width="2" stroke-dasharray="3 3">${exporting?'':'<animate attributeName="stroke-opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite"/>'}</circle>`;s+=`<circle cx="${n.x}" cy="${n.y}" r="${18+extra}" fill="transparent"/>`+icon(n.x,n.y,n.type,n.color,radius)+chartNameLabel(n.x,n.y+labelOffset,n.name,n.port,11,n.color,700);let labelY=n.y+labelOffset+chartNameLines(n.name).length*17.6;children.forEach(c=>{s+='<g opacity="'+(c.hidden?0.3:1)+'">'+chartNameLabel(n.x,labelY,c.name,c.port,9,'#91a9bd',400,false)+'</g>';labelY+=14.4;});s+='</g>';}
  return s;
 }
@@ -2261,7 +2273,40 @@ $('load').onclick=async()=>{
 $('file').onchange=async ev=>{const f=ev.target.files[0];if(f)try{await rimImportCampaign(f,null);}catch(e){toast(e.message||'Unable to read campaign.');}ev.target.value='';};
 $('campaignCloudCopy').onclick=rimCopyPlayerLink;
 
-function exportSVG(){const b=bounds(true);return `<svg xmlns="http://www.w3.org/2000/svg" width="4200" height="${Math.round(4200*b.h/b.w)}" viewBox="${b.x} ${b.y} ${b.w} ${b.h}"><style>${TERMINAL_CSS.match(/@font-face\{[^}]+\}/)[0]}</style>${scene(true,true,true)}</svg>`;}
+// Export-only monochrome artwork: no filters, halos, texture or translucent fills.
+function chartPrintArtwork(content){
+ content=content.replace(/<defs>[\s\S]*?<\/defs>/g,'')
+  .replace(/<(?:circle|rect)\b[^>]*fill="url\(#(?:halo|stars)\)"[^>]*\/?>/g,'')
+  .replace(/<(?:circle|line)\b[^>]*(?:fill|stroke)="transparent"[^>]*\/?>/g,'')
+  .replace(/<animate\b[^>]*\/?>/g,'');
+ content=content.replace(/<g data-chart-symbol="moon"[^>]*>[\s\S]*?<\/g>/g,moon=>moon
+  .replace(/<circle\b[^>]*\/>/g,'')
+  .replace('<path ','<path data-print-crescent="true" ')
+  .replace('stroke="none"','stroke="#000000"'));
+ content=content.replace(/<circle\b[^>]*data-chart-orbit="true"[^>]*\/>/g,tag=>{
+  const width=Number(tag.match(/stroke-width="([^"]+)"/)?.[1]||1)/4;
+  return tag.replace(/\s(?:stroke-width|stroke-dasharray)="[^"]*"/g,'').replace('/>',' stroke-width="'+width+'" stroke-dasharray="3 3"/>');
+ });
+ content=content.replace(/<line\b[^>]*>/g,tag=>{
+  const width=Number(tag.match(/stroke-width="([^"]+)"/)?.[1]||1)/2;
+  return tag.replace(/\sstroke-width="[^"]*"/g,'').replace(/\/?>$/,end=>' stroke-width="'+width+'"'+end);
+ });
+ return content.replace(/<(rect|circle|path|line|text|g)\b[^>]*>/g,tag=>{
+  const type=tag.match(/^<(\w+)/)[1],fill=tag.match(/\sfill="([^"]*)"/);
+  tag=tag.replace(/\s(?:opacity|fill-opacity|stroke-opacity)="[^"]*"/g,'');
+  tag=tag.replace(/\sstroke="([^"]*)"/g,(m,v)=>' stroke="'+(v==='none'?'none':'#000000')+'"');
+  if(fill){
+   const v=fill[1];let ink=v==='none'?'none':type==='text'?'#000000':type==='path'&&!tag.includes('data-print-crescent=')?'#000000':'#ffffff';
+   if(v.startsWith('rgba('))ink='none';
+   if(tag.includes('data-chart-symbol="station"'))ink='#ffffff';
+   tag=tag.replace(/\sfill="[^"]*"/,' fill="'+ink+'"');
+   if(type==='circle'&&ink==='#ffffff'&&!/\sstroke=/.test(tag))tag=tag.replace(/\/?>$/,end=>' stroke="#000000" stroke-width="1.1"'+end);
+  }
+  return tag;
+ });
+}
+function exportSVG(printColors=$('playerPrintColors')?.checked===true){const b=bounds(true);let content=scene(true,true,true);if(printColors)content=chartPrintArtwork(content);return `<svg xmlns="http://www.w3.org/2000/svg" width="4200" height="${Math.round(4200*b.h/b.w)}" viewBox="${b.x} ${b.y} ${b.w} ${b.h}"><style>${TERMINAL_CSS.match(/@font-face\{[^}]+\}/)[0]}</style>${content}</svg>`;}
+for(const id of ['playerPrintColors','mwPlayerPrintColors']){const el=$(id);if(el)el.onchange=()=>{for(const other of ['playerPrintColors','mwPlayerPrintColors'])if($(other))$(other).checked=el.checked;};}
 $('svgExport').onclick=()=>download(new Blob([exportSVG()],{type:'image/svg+xml'}),filename()+'-players.svg');
 $('png').onclick=()=>{const svg=exportSVG(),url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'})),im=new Image();im.onload=()=>{const canvas=document.createElement('canvas');canvas.width=4200;canvas.height=Math.round(4200*bounds(true).h/bounds(true).w);const c=canvas.getContext('2d');c.drawImage(im,0,0,canvas.width,canvas.height);URL.revokeObjectURL(url);canvas.toBlob(blob=>{if(blob){download(blob,filename()+'-players.png');toast('Player PNG exported.');}else toast('PNG export failed. Try SVG.');},'image/png');};im.onerror=()=>{URL.revokeObjectURL(url);toast('PNG export failed. Try SVG.');};im.src=url;};
 
@@ -2295,7 +2340,7 @@ function mwMount(){
  <nav id="mwNav" aria-label="Warden sections"><button data-mw-tab="bounties">Bounties</button><button data-mw-tab="board">Board</button><button data-mw-tab="map">Map</button></nav>
  <section id="mwBrowse" aria-label="Warden directory"><div class="row"><h1 id="mwBrowseTitle" style="flex:1">Bounties</h1><button id="mwDirectoryClose" hidden>Back to map</button></div><label id="mwSearchLabel" for="mwSearch">Find a bounty</label><input id="mwSearch" type="search" placeholder="Number, target, or location"><div id="mwFilters"></div><div id="mwResults"></div></section>
  <section id="mwDetail" hidden role="region" aria-label="Warden record"><div class="mw-detail-head"><button id="mwBack">← Back</button><strong>WARDEN REFERENCE</strong><button id="mwLocate" hidden>Map</button></div><div id="mwDetailBody" class="mw-detail-body"></div><div id="mwDetailFooter" class="mw-detail-footer"></div></section>
- <div id="mwMenu" hidden><button data-mw-action="settings">Settings</button><button data-mw-action="load">Load Cloud Save</button><button data-mw-action="upload">Upload Cloud Save</button><button data-mw-action="undo">Undo</button><button data-mw-action="redo">Redo</button><button data-mw-action="png">Export Player PNG</button><button data-mw-action="svg">Export Player SVG</button><button data-mw-action="edit">Map editing tools</button><p>Posting updates this session. Upload Cloud Save separately to update the cloud.</p></div>
+ <div id="mwMenu" hidden><button data-mw-action="settings">Settings</button><button data-mw-action="load">Load Cloud Save</button><button data-mw-action="upload">Upload Cloud Save</button><button data-mw-action="undo">Undo</button><button data-mw-action="redo">Redo</button><button data-mw-action="png">Export Player PNG</button><button data-mw-action="svg">Export Player SVG</button><label class="row"><input id="mwPlayerPrintColors" type="checkbox"> Print Mode</label><button data-mw-action="edit">Map editing tools</button><p>Posting updates this session. Upload Cloud Save separately to update the cloud.</p></div>
  <div id="mwInspectorBar"><strong>Map editing</strong><button id="mwInspectorClose">Back to map</button></div>`;
  document.body.append(shell);
  const actions=document.createElement('div');actions.id='mwMapActions';actions.innerHTML='<button id="mwSystems">Systems</button><button id="mwEditDone" hidden>Done editing</button>';$('consoleStage').append(actions);
@@ -2309,6 +2354,7 @@ function mwMount(){
  $('mwDetailFooter').onclick=e=>{const b=e.target.closest('[data-mw-post]');if(b){postBounty(b.dataset.system,Number(b.dataset.mwPost));mwRenderDetail();}const edit=e.target.closest('[data-mw-edit-system]');if(edit){mwState.detail=null;mwState.edit=true;mwState.inspector=true;selectedDirectoryBounty=null;selected={type:'node',id:edit.dataset.mwEditSystem};inspector();mwSync();}};
  $('mwDetailBody').onclick=e=>{const b=e.target.closest('[data-mw-bounty]');if(b)mwOpenBounty(Number(b.dataset.mwBounty));};
  $('mwMore').onclick=()=>mwMenu($('mwMenu').hidden);
+ $('mwMenu').addEventListener('change',e=>{if(e.target.id==='mwPlayerPrintColors')$('playerPrintColors').checked=e.target.checked;});
  $('mwMenu').onclick=e=>{const b=e.target.closest('[data-mw-action]');if(!b)return;mwMenu(false);const a=b.dataset.mwAction;if(a==='settings')$('terminalSettings').click();if(a==='load')rimCloudLoadChooser();if(a==='upload')rimCloudPush();if(a==='undo')undo();if(a==='redo')redo();if(a==='png')$('png').click();if(a==='svg')$('svgExport').click();if(a==='edit'){mwSetTab('map');mwState.edit=true;mwSync();}};
  $('mwPreview').onclick=mwPreview;
  $('mwSystems').onclick=()=>{mwState.directory=true;mwSync();$('mwSearch').focus();};
