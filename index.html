@@ -933,7 +933,7 @@ function navCleanJump(raw){
  if(!r||!r.from||!r.to||!Array.isArray(r.ids)||!Array.isArray(r.edges)||!Array.isArray(r.ratings)||r.ids.length>3000||r.edges.length!==r.ratings.length||r.ids.length!==r.edges.length+1)return null;
  const route={from:{id:str(r.from.id),name:str(r.from.name)},to:{id:str(r.to.id),name:str(r.to.name)},ids:r.ids.map(x=>str(x)),edges:r.edges.map(x=>str(x)),ratings:r.ratings.map(Number),cost:r.edges.length,maxJump:Math.max(0,...r.ratings.map(Number)),drive:Number(r.drive),cores:Number(r.cores),names:(Array.isArray(r.names)?r.names:[]).map(x=>str(x))};
  if(!route.ratings.every(n=>Number.isInteger(n)&&n>=1&&n<=10)||!Number.isSafeInteger(route.cores)||route.cores<0||!Number.isInteger(route.drive)||route.drive<0||route.drive>10)return null;
- return {id:str(raw.id,100),phase:raw.phase,remaining:Math.max(0,Math.min(raw.phase==='countdown'?30000:raw.phase==='blackout'?10000:4000,Number(raw.remaining)||0)),route,committed:raw.committed===true,message:str(raw.message,1000)};
+ return {id:str(raw.id,100),phase:raw.phase,remaining:Math.max(0,Math.min(raw.phase==='countdown'?30000:raw.phase==='blackout'?5000:4000,Number(raw.remaining)||0)),route,committed:raw.committed===true,message:str(raw.message,1000)};
 }
 let navPulseClock={id:'',last:0},navViewers=new Map(),navSavedAt=0;
 function navBusy(){return ['countdown','blackout'].includes(data.terminal.navigationJump?.phase);}
@@ -953,7 +953,7 @@ function navFinishJump(j){if(restrictedPlayer||j.committed)return;const error=na
  if($('ship_warpCores'))$('ship_warpCores').value=ship.warpCores;if($('ship_location'))$('ship_location').value=ship.locationId;
  history=[];future=[];
 }
-function navJumpAdvance(ms){const j=data.terminal.navigationJump;if(!j||!['countdown','blackout'].includes(j.phase))return;let left=Math.max(0,ms);while(left>0&&['countdown','blackout'].includes(j.phase)){const step=Math.min(left,j.remaining);j.remaining-=step;left-=step;if(j.remaining>0)break;if(j.phase==='countdown'){const error=navValidateExecution(j);if(error){j.phase='error';j.message=error;break;}j.phase='blackout';j.remaining=10000;}else if(j.phase==='blackout')navFinishJump(j);else break;}}
+function navJumpAdvance(ms){const j=data.terminal.navigationJump;if(!j||!['countdown','blackout'].includes(j.phase))return;let left=Math.max(0,ms);while(left>0&&['countdown','blackout'].includes(j.phase)){const step=Math.min(left,j.remaining);j.remaining-=step;left-=step;if(j.remaining>0)break;if(j.phase==='countdown'){const error=navValidateExecution(j);if(error){j.phase='error';j.message=error;break;}j.phase='blackout';j.remaining=5000;}else if(j.phase==='blackout')navFinishJump(j);else break;}}
 function navPublicJump(){const j=data.terminal.navigationJump;if(!j)return null;const r=j.route;const places=r.ids.map(id=>data.nodes.find(n=>n.id===id));if(places.some(n=>!n||n.hidden)||!navPlace(r.to.id,r.to.name))return {id:j.id,phase:'error',message:'ROUTE UNAVAILABLE. RECALCULATE ROUTE.',remaining:0,route:null};return {...j,route:{...r,names:places.map(n=>n.name)},seconds:Math.ceil(j.remaining/1000)};}
 function navReply(peer,session,extra){peer.postMessage({type:'rim-nav-result',session,epoch:terminalEpoch,...extra},PLAYER_TARGET);}
 function navHandle(message,peer,session,isPreview){
@@ -971,7 +971,7 @@ function navHandle(message,peer,session,isPreview){
   const latest=navCalculate(j.route.to.id,j.route.to.name);
   if(latest.error){j.phase='error';j.message=latest.error;persist();sendPlayerFrame(true);return;}
   if(!navRouteSame(j.route,latest)){j.id=uid();j.route=latest;j.message='ROUTE OR SHIP DATA CHANGED. REVIEW UPDATED CALCULATION.';persist();sendPlayerFrame(true);return;}
-  j.phase='countdown';j.remaining=30000;j.message='ENTER CRYOPODS AND BEGIN CRYOSLEEP.';navPulseClock={id:j.id,last:0};navViewers.clear();persist();sendPlayerFrame(true);return;
+  j.phase='countdown';j.remaining=30000;j.message='ENTER CRYOPODS AND BEGIN CRYOSLEEP.';navPulseClock={id:j.id,last:Date.now()};navViewers.clear();persist();sendPlayerFrame(true);return;
  }
  if(action==='abort'&&['review','countdown'].includes(j.phase)){j.phase='aborted';j.message='JUMP ABORTED. NO WARP CORES CONSUMED.';j.remaining=0;navViewers.clear();persist();sendPlayerFrame(true);return;}
  if(action==='ack'&&j.phase==='complete'&&j.committed){data.terminal.navigationJump=null;persist();sendPlayerFrame(true);}
@@ -980,14 +980,13 @@ function navJumpTick(){
  if(restrictedPlayer){navPulseClock.last=0;return;}
  const now=Date.now(),j=data.terminal.navigationJump;
  if(!j||!['countdown','blackout'].includes(j.phase)){navPulseClock={id:'',last:0};return;}
- if(navPulseClock.id!==j.id)navPulseClock={id:j.id,last:0};
- const viewers=Array.from(navViewers.values()).some(v=>v.active&&now-v.at<850&&(!v.peer.closed)&&(!v.isPreview||player));
- if(!viewers){navPulseClock.last=0;return;}
+ if(navPulseClock.id!==j.id)navPulseClock={id:j.id,last:now};
  const previous=navPulseClock.last;navPulseClock.last=now;if(!previous)return;
- const elapsed=now-previous;if(elapsed>1000)return; // sleep/reload never consumes absent time
+ // Count real elapsed time even when background browser timers are throttled.
+ const elapsed=Math.max(0,now-previous);
  const phase=j.phase,sec=Math.ceil(j.remaining/1000);navJumpAdvance(elapsed);
  if(now-navSavedAt>=900||j.phase!==phase){persist();navSavedAt=now;}
- if(sec!==Math.ceil(j.remaining/1000)||j.phase!==phase){if(j.committed&&phase==='blackout')refresh();sendPlayerFrame(true);}
+ if(sec!==Math.ceil(j.remaining/1000)||j.phase!==phase){if(j.committed)refresh();sendPlayerFrame(true);}
 }
 setInterval(navJumpTick,200);
 
@@ -1703,7 +1702,7 @@ $('systemList').onclick=ev=>{
   if(sortButton){if(player)return;directoryBountySortDirection*=-1;list();$('systemList').querySelector('[data-directory-bounty-direction]')?.focus();return;}
   const b=ev.target.closest('[data-focus]');if(!b)return;const n=node(b.dataset.focus);if(!n)return;selectedDirectoryBounty=null;selected={type:'node',id:n.id};inspectorTab='edit';view={x:n.x-340,y:n.y-250,w:680,h:500};setMode('select');refresh();if(b.dataset.focusBounty){const card=$('inspector').querySelector('[data-bounty-detail="'+b.dataset.focusBounty+'"]');if(card){card.open=true;card.scrollIntoView({block:'nearest'});}}};$('search').oninput=list;
 $('select').onclick=()=>setMode('select');$('add').onclick=()=>setMode('add');$('connect').onclick=()=>setMode('connect');$('fit').onclick=fit;$('zoomIn').onclick=()=>zoom(.8);$('zoomOut').onclick=()=>zoom(1.25);$('undo').onclick=undo;$('redo').onclick=redo;
-$('player').onclick=()=>{if(restrictedPlayer){enterRestrictedPlayer();return;}if(!player&&data.playerDisplay.popout){openPlayerWindow();return;}if(player){for(const v of navViewers.values())if(v.isPreview)v.active=false;navPulseClock.last=0;}player=!player;document.body.classList.toggle('player',player);$('player').textContent=player?'Back to editor':'Player view';selected=null;setMode('select');refresh();fit();};
+$('player').onclick=()=>{if(restrictedPlayer){enterRestrictedPlayer();return;}if(!player&&data.playerDisplay.popout){openPlayerWindow();return;}if(player){for(const v of navViewers.values())if(v.isPreview)v.active=false;}player=!player;document.body.classList.toggle('player',player);$('player').textContent=player?'Back to editor':'Player view';selected=null;setMode('select');refresh();fit();};
 
 // Player display receives rendered player-safe SVG only, never campaign data.
 let playerWindow=null,playerWindowURL=null,playerSession='',playerLastFrame='',playerSyncQueued=false,playerLastSeen=0;
@@ -2410,7 +2409,7 @@ function mwSync(){
 }
 function mwPreview(){
  if(restrictedPlayer){enterRestrictedPlayer();return;}
- if(player){for(const v of navViewers.values())if(v.isPreview)v.active=false;navPulseClock.last=0;}
+ if(player){for(const v of navViewers.values())if(v.isPreview)v.active=false;}
  player=!player;document.body.classList.toggle('player',player);$('player').textContent=player?'Back to editor':'Player view';setMode('select');mwState.edit=false;mwState.inspector=false;refresh();
 }
 // Reuse existing rendering and board mutation functions rather than fork campaign logic.
